@@ -7,6 +7,7 @@ COLABFOLD_DIR = "colabfold_outputdir"
 
 rule all:
     input:
+        "colabfold_filtered.csv",
         COLABFOLD_DIR,
         directory(MPNN_SEQ_DIR)
 
@@ -82,3 +83,16 @@ rule run_colabfold:
         conda activate alphafold_rmcl
         colabfold_batch --msa-mode single_sequence --num-recycle 3 {input} {output}
         """
+
+rule analyze_colabfold_output:
+    input:
+        af2_output_path = COLABFOLD_DIR
+    output:
+        "colabfold_filtered.csv"
+    shell:
+        """
+        python filter_colabfold.py {input.af2_output_path} {output}
+        """
+
+
+
