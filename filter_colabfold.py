@@ -1,25 +1,25 @@
+# filter_colabfold.py
 import json
 import os
+import sys
 from glob import glob
 import pandas as pd
 
 def avg_plddt(plddt_list):
-    return sum(plddt_list)/len(plddt_list) 
+    return sum(plddt_list) / len(plddt_list) if plddt_list else None
 
 def get_af2_scores(af2_output_path):
     data_records = []
-
     files = glob(f'{af2_output_path}/*rank_1*.json')
     for file in files:
         with open(file, 'r') as f:
             data = json.load(f)
 
-        filename = os.path.basename(files[0])
-        design_name = filename.split('_')[0]
+        filename = os.path.basename(file)
+        design_name = filename.replace('_rank_1.json', '')
 
         max_pae = data.get('max_pae', None)
         plddt_list = data.get('plddt', [])
-
         average_plddt = avg_plddt(plddt_list)
 
         data_records.append({
@@ -28,8 +28,12 @@ def get_af2_scores(af2_output_path):
             'average_plddt': average_plddt
         })
 
-    df = pd.DataFrame(data_records)
-    return df
+    return pd.DataFrame(data_records)
 
-af2_output_path = '/Users/rmcl/Documents/PhD/development/karly_rotation/job-runs/LHD101-10ang-af2-top-candidates-2025-1-7-24/output'
-df = get_af2_scores(af2_output_path)
+if __name__ == "__main__":
+    af2_output_path = sys.argv[1]
+    output_path = sys.argv[2]
+
+    df = get_af2_scores(af2_output_path)
+    df.to_csv(output_path, index=False)
+    print(df)
