@@ -1,45 +1,19 @@
 from glob import glob
 import os
 
-RFD_PDB_DIR = "RFD_outputs"
 MPNN_SEQ_DIR = "LHD101_MPNN_outputs/seqs"
 COLABFOLD_DIR = "colabfold_outputdir"
+folder_with_pdbs="/home/rmcl/sopes/inputs"
 
 rule all:
     input:
         "colabfold_filtered.csv",
         COLABFOLD_DIR,
-        directory(MPNN_SEQ_DIR)
-
-checkpoint run_RFD:
-    input:
-        "inputs/LHD101.pdb"
-    output:
-        directory(RFD_PDB_DIR)
-    shell:
-        """
-        set +u
-        source /opt/anaconda/anaconda3/etc/profile.d/conda.sh
-        conda activate SE3nv_rmcl
-
-        cd /home/rmcl/tools/rfdiffusion/RFdiffusion
-
-        ./scripts/run_inference.py \
-            inference.output_prefix=/home/rmcl/sopes/RFD_outputs/design_partialdiffusion \
-            inference.input_pdb=/home/rmcl/sopes/inputs/LHD101.pdb \
-            'contigmap.contigs=[150-150]' \
-            inference.num_designs=2 \
-            diffuser.partial_T=10
-        """
-
-def get_rfd_pdbs(wildcards):
-    ckpt_out = checkpoints.run_RFD.get(**wildcards).output[0]
-    return glob(os.path.join(ckpt_out, "*.pdb"))
+        MPNN_SEQ_DIR
 
 rule run_MPNN:
     input:
-        pdbs = get_rfd_pdbs,
-        pdb_dir = RFD_PDB_DIR
+        "bias_by_res_full.json"
     output:
         directory(MPNN_SEQ_DIR)
     shell:
@@ -47,28 +21,29 @@ rule run_MPNN:
         set +u
         source /opt/anaconda/anaconda3/etc/profile.d/conda.sh
         conda activate rmcl-proteinmpnn
-
+        
+        
         python /home/rmcl/tools/ProteinMPNN/helper_scripts/parse_multiple_chains.py \
-            --input_path={RFD_PDB_DIR} \
+            --input_path={folder_with_pdbs} \
             --output_path=LHD101_MPNN_outputs/parsed_pdbs.jsonl
-
+        
         python /home/rmcl/tools/ProteinMPNN/protein_mpnn_run.py \
-            --jsonl_path LHD101_MPNN_outputs/parsed_pdbs.jsonl \
-            --out_folder LHD101_MPNN_outputs \
-            --num_seq_per_target 2 \
-            --sampling_temp "0.1" \
-            --seed 37 \
-            --batch_size 1
+                --jsonl_path LHD101_MPNN_outputs/parsed_pdbs.jsonl \
+                --bias_by_res_jsonl /home/rmcl/sopes/bias_by_res_full.jsonl \
+                --out_folder LHD101_MPNN_outputs \
+                --num_seq_per_target 1000 \
+                --sampling_temp "1.0" \
+                --batch_size 1
         """
 
 rule run_MPNN_out_to_fa:
     input:
-        directory(MPNN_SEQ_DIR)
+        MPNN_SEQ_DIR
     output:
         "combined_sequences.fa"
     shell:
         """
-        bash /home/rmcl/sopes/MPNN_out_to_fa.sh
+        python /home/rmcl/sopes/MPNN_out_to_fa.py
         """
 
 rule run_colabfold:
@@ -93,6 +68,3 @@ rule analyze_colabfold_output:
         """
         python filter_colabfold.py {input.af2_output_path} {output}
         """
-
-
-
